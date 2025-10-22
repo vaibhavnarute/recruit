@@ -1,0 +1,532 @@
+# 🎯 Interview Scheduling System - Setup & Usage Guide
+
+## 📋 Overview
+
+Automated interview scheduling system with:
+- ✅ **LangGraph** workflow orchestration
+- ✅ **MCP** (Model Context Protocol) for optimization
+- ✅ **Google Calendar API** for Meet link generation
+- ✅ **Professional email** templates
+- ✅ **MongoDB** persistence
+- ✅ **Comprehensive error handling** (all errors return 200 status)
+
+---
+
+## 🏗️ Architecture
+
+```
+FastAPI Endpoint
+    ↓
+LangGraph Agent (Workflow Orchestration)
+    ├── Node 1: Validate Inputs
+    ├── Node 2: Create Google Meet Link (24h validity)
+    ├── Node 3: Send Email Invitation
+    ├── Node 4: Save to MongoDB
+    └── Error Handler
+    ↓
+MCP Context Manager (Optimization)
+    ├── Cache Google API responses
+    ├── Track conversation context
+    └── Optimize token usage
+```
+
+---
+
+## 🚀 Quick Start
+
+### Step 1: Install Dependencies
+
+```bash
+cd backend
+pip install -r interview_scheduling_requirements.txt
+```
+
+### Step 2: Google Calendar API Setup
+
+#### 2.1 Create Google Cloud Project
+
+1. Go to: https://console.cloud.google.com/
+2. Click "Create Project"
+3. Name it: "AI Recruiter Interview System"
+4. Click "Create"
+
+#### 2.2 Enable Google Calendar API
+
+1. In your project, go to "APIs & Services" → "Library"
+2. Search for "Google Calendar API"
+3. Click "Enable"
+
+#### 2.3 Create OAuth Credentials
+
+1. Go to "APIs & Services" → "Credentials"
+2. Click "Create Credentials" → "OAuth client ID"
+3. Application type: "Desktop app"
+4. Name: "Interview Scheduler"
+5. Click "Create"
+6. Click "Download JSON"
+7. Save as `google_credentials.json` in the `backend` folder
+
+#### 2.4 First-Time Authentication
+
+```bash
+cd backend
+python -c "from services.google_calendar_service import GoogleCalendarService; s = GoogleCalendarService(); s.authenticate()"
+```
+
+This will:
+- Open browser for Google login
+- Ask for Calendar API permissions
+- Save refresh token to `google_token.json`
+- Token valid for 24 hours
+
+### Step 3: Environment Variables
+
+Add to `.env` file in `backend` folder:
+
+```bash
+# Google Calendar (optional - credentials file is enough)
+GOOGLE_CREDENTIALS_PATH=google_credentials.json
+GOOGLE_TOKEN_PATH=google_token.json
+
+# SMTP Email (required for sending emails)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password  # NOT your regular password!
+SENDER_EMAIL=your-email@gmail.com
+
+# MongoDB (should already be set)
+MONGO_URI=mongodb+srv://...
+MONGO_DB_NAME=resumate
+```
+
+#### How to Get Gmail App Password:
+
+1. Go to: https://myaccount.google.com/security
+2. Enable 2-Step Verification (if not already enabled)
+3. Go to "App passwords"
+4. Generate password for "Mail"
+5. Use this password in `SMTP_PASSWORD`
+
+### Step 4: Start the Server
+
+```bash
+cd backend
+python main.py
+```
+
+Server will start at: http://localhost:8001
+
+---
+
+## 📖 API Documentation
+
+### Endpoint: Schedule Interview
+
+**POST** `/api/interviews/schedule`
+
+#### Request Body:
+
+```json
+{
+  "candidate_name": "John Doe",
+  "candidate_email": "john.doe@example.com",
+  "candidate_id": "optional-resume-id",
+  "job_id": "job-123",
+  "job_title": "Python Developer",
+  "hr_email": "hr@company.com",
+  "hr_id": "hr-user-id",
+  "scheduled_datetime": "2025-10-21T10:00:00Z",
+  "duration_minutes": 30,
+  "interview_type": "ai_assisted"
+}
+```
+
+#### Success Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "interview_id": "uuid-here",
+    "meet_link": "https://meet.google.com/abc-defg-hij",
+    "calendar_link": "https://calendar.google.com/...",
+    "calendar_event_id": "event_id",
+    "expires_at": "2025-10-21T10:00:00Z",
+    "email_sent": true,
+    "mongodb_saved": true,
+    "scheduled_for": "2025-10-21T10:00:00Z",
+    "duration_minutes": 30,
+    "candidate": {
+      "name": "John Doe",
+      "email": "john.doe@example.com"
+    },
+    "job_title": "Python Developer"
+  },
+  "logs": [
+    "[timestamp] Starting input validation",
+    "[timestamp] Validation successful",
+    "[timestamp] Creating Google Meet link",
+    "[timestamp] Meet link created successfully",
+    "[timestamp] Sending email invitation",
+    "[timestamp] Email sent successfully",
+    "[timestamp] Saving to MongoDB",
+    "[timestamp] Saved to MongoDB successfully"
+  ]
+}
+```
+
+#### Error Response (Still 200 Status!):
+
+```json
+{
+  "success": false,
+  "errors": [
+    {
+      "code": "INVALID_CANDIDATE_EMAIL",
+      "message": "Valid candidate email is required",
+      "field": "candidate_email"
+    }
+  ],
+  "partial_data": {
+    "interview_id": "uuid-here",
+    "meet_link": null,
+    "email_sent": false,
+    "mongodb_saved": false
+  },
+  "logs": [
+    "[timestamp] Starting input validation",
+    "[timestamp] Validation failed: 1 errors"
+  ]
+}
+```
+
+### Endpoint: Get Interview Details
+
+**GET** `/api/interviews/{interview_id}`
+
+#### Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "interview_id": "uuid",
+    "candidate_name": "John Doe",
+    "candidate_email": "john.doe@example.com",
+    "job_title": "Python Developer",
+    "meet_link": "https://meet.google.com/...",
+    "calendar_link": "https://calendar.google.com/...",
+    "scheduled_for": "2025-10-21T10:00:00Z",
+    "status": "scheduled",
+    "email_sent": true,
+    "created_at": "2025-10-20T15:30:00Z"
+  }
+}
+```
+
+### Endpoint: Check Interview Status
+
+**GET** `/api/interviews/status/{interview_id}`
+
+#### Response (200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "interview_id": "uuid",
+    "status": "scheduled",
+    "scheduled_for": "2025-10-21T10:00:00Z",
+    "meet_link": "https://meet.google.com/...",
+    "email_sent": true,
+    "calendar_event": {
+      "event_id": "...",
+      "status": "confirmed",
+      "start_time": "2025-10-21T10:00:00Z",
+      "end_time": "2025-10-21T10:30:00Z"
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Testing
+
+### Run Test Suite:
+
+```bash
+cd backend
+python test_interview_scheduling.py
+```
+
+### Test Cases Covered:
+
+1. ✅ **Success Case** - Complete workflow
+2. ❌ **Invalid Email** - Validation error
+3. ❌ **Past DateTime** - Validation error
+4. ❌ **Missing Fields** - FastAPI validation
+5. ✅ **Get Interview** - Retrieve details
+6. ✅ **Check Status** - Verify Meet link validity
+
+### Manual Testing with cURL:
+
+```bash
+# Schedule Interview
+curl -X POST http://localhost:8001/api/interviews/schedule \
+  -H "Content-Type: application/json" \
+  -d '{
+    "candidate_name": "Test User",
+    "candidate_email": "test@example.com",
+    "job_id": "job-001",
+    "job_title": "Python Developer",
+    "hr_email": "hr@example.com",
+    "hr_id": "hr-123",
+    "scheduled_datetime": "2025-10-21T10:00:00Z",
+    "duration_minutes": 30,
+    "interview_type": "ai_assisted"
+  }'
+
+# Get Interview
+curl http://localhost:8001/api/interviews/{interview_id}
+
+# Check Status
+curl http://localhost:8001/api/interviews/status/{interview_id}
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Issue: "Google credentials file not found"
+
+**Solution:**
+```bash
+# Download credentials from Google Cloud Console
+# Save as: backend/google_credentials.json
+```
+
+### Issue: "SMTP authentication failed"
+
+**Solution:**
+```bash
+# 1. Enable 2-Step Verification on Gmail
+# 2. Generate App Password
+# 3. Use App Password in SMTP_PASSWORD (not regular password)
+```
+
+### Issue: "MongoDB connection error"
+
+**Solution:**
+```bash
+# Check MongoDB connection in .env
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGO_DB_NAME=resumate
+
+# Test connection:
+python -c "from db.mongo_client import MongoDBClient; client = MongoDBClient(); print('Connected!')"
+```
+
+### Issue: "Import Error: langgraph"
+
+**Solution:**
+```bash
+pip install langgraph>=1.0.0
+```
+
+### Issue: "Meet link not generated"
+
+**Possible Causes:**
+1. Google Calendar API not enabled
+2. OAuth credentials invalid
+3. Token expired (re-authenticate)
+
+**Solution:**
+```bash
+# Re-authenticate
+python -c "from services.google_calendar_service import GoogleCalendarService; s = GoogleCalendarService(); s.authenticate()"
+```
+
+---
+
+## 📊 Workflow Details
+
+### LangGraph Nodes:
+
+1. **validate_inputs**
+   - Checks all required fields
+   - Validates email formats
+   - Ensures datetime is in future
+   - Validates duration (15-180 minutes)
+
+2. **create_meet_link**
+   - Calls Google Calendar API
+   - Creates calendar event with Meet link
+   - Caches response (MCP optimization)
+   - Token valid for 24 hours
+
+3. **send_email**
+   - Sends HTML email template
+   - Includes Meet link and calendar invite
+   - Professional formatting
+   - Logs email in MongoDB
+
+4. **save_to_mongodb**
+   - Stores complete interview data
+   - Includes all metadata
+   - Tracks email/calendar status
+
+5. **handle_error**
+   - Catches errors at any step
+   - Returns 200 status with error details
+   - Logs errors for debugging
+
+### MCP Integration:
+
+1. **Context Manager**
+   - Tracks conversation history
+   - Compresses old messages
+   - Saves tokens (reduces API costs)
+
+2. **Cache Manager**
+   - Caches Google API responses
+   - 24-hour TTL
+   - Avoids duplicate API calls
+
+3. **Token Optimizer**
+   - Optimizes LLM prompts
+   - Reduces token usage
+   - Maintains context quality
+
+---
+
+## 🎨 Email Template
+
+The system sends professionally formatted HTML emails with:
+
+- 🎉 Congratulations header
+- 📅 Interview details (date, time, duration)
+- 🔗 Clickable Meet link button
+- 📌 Important notes and preparation tips
+- 💼 Professional branding
+- 📧 Plain text fallback
+
+---
+
+## 📈 Monitoring & Logs
+
+### Log Levels:
+
+- **INFO**: Normal operation (workflow steps)
+- **WARNING**: Non-critical issues (email log failed)
+- **ERROR**: Critical failures (API errors)
+
+### Example Log Output:
+
+```
+2025-10-20 15:30:00 - INFO - 📞 API CALL: /api/interviews/schedule
+2025-10-20 15:30:00 - INFO - 📝 Candidate: John Doe (john@example.com)
+2025-10-20 15:30:00 - INFO - 🤖 Initializing Interview Scheduling Agent...
+2025-10-20 15:30:00 - INFO - 📋 STEP 1: Validating inputs...
+2025-10-20 15:30:01 - INFO - ✅ Input validation passed
+2025-10-20 15:30:01 - INFO - 🔗 STEP 2: Creating Google Meet link...
+2025-10-20 15:30:02 - INFO - ✅ Meet link created: https://meet.google.com/abc-defg-hij
+2025-10-20 15:30:02 - INFO - 📧 STEP 3: Sending email invitation...
+2025-10-20 15:30:03 - INFO - ✅ Email sent successfully to john@example.com
+2025-10-20 15:30:03 - INFO - 💾 STEP 4: Saving to MongoDB...
+2025-10-20 15:30:04 - INFO - ✅ Interview saved to MongoDB
+2025-10-20 15:30:04 - INFO - ✅ WORKFLOW COMPLETED: SUCCESS
+```
+
+---
+
+## 🔐 Security Notes
+
+1. **Google Credentials**: Never commit `google_credentials.json` or `google_token.json` to git
+2. **SMTP Password**: Use App Password, not regular Gmail password
+3. **MongoDB URI**: Keep in `.env`, never commit
+4. **API Keys**: Store in environment variables
+
+### .gitignore Entries:
+
+```
+google_credentials.json
+google_token.json
+.env
+*.pyc
+__pycache__/
+```
+
+---
+
+## 📚 Dependencies
+
+### Core:
+- `fastapi` - Web framework
+- `langgraph` - Workflow orchestration
+- `pymongo` - MongoDB driver
+- `google-api-python-client` - Google Calendar API
+
+### Supporting:
+- `pydantic` - Request validation
+- `uvicorn` - ASGI server
+- `python-dotenv` - Environment variables
+
+---
+
+## 🎯 Success Metrics
+
+After implementation, you should see:
+- ✅ 100% error handling (no 500 errors)
+- ✅ All errors return 200 status with details
+- ✅ Meet links generated in <2 seconds
+- ✅ Emails sent in <3 seconds
+- ✅ Complete workflow <10 seconds
+- ✅ MCP reduces API calls by 30-50%
+
+---
+
+## 🚀 Next Steps
+
+After basic setup works:
+
+1. **Add phone field** to interview invitations
+2. **Calendar invite attachment** in email
+3. **Reminder emails** 1 hour before interview
+4. **Interview recording** integration
+5. **Transcript fetching** from Google Drive
+6. **AI interview analysis** post-interview
+7. **Candidate feedback** collection
+
+---
+
+## 💡 Tips
+
+1. **Test with your own email** first
+2. **Check spam folder** for invitation emails
+3. **Use future datetime** (at least 1 hour ahead)
+4. **Valid email formats** required
+5. **Google OAuth** requires browser access first time
+
+---
+
+## 📞 Support
+
+If you encounter issues:
+
+1. Check logs in console
+2. Verify all environment variables set
+3. Test Google Calendar API separately
+4. Test SMTP separately
+5. Check MongoDB connection
+
+For detailed debugging, set logging level to DEBUG:
+
+```python
+logging.basicConfig(level=logging.DEBUG)
+```
+
+---
+
+**Built with ❤️ using LangGraph + MCP + Google Calendar API**

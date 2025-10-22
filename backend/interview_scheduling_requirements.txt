@@ -1,0 +1,19 @@
+# Additional requirements for Interview Scheduling Feature
+# Install with: pip install -r interview_scheduling_requirements.txt
+
+# Google Calendar API
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+
+# LangGraph (if not already installed)
+langgraph
+
+# These should already be installed from main requirements.txt:
+# - fastapi
+# - uvicorn
+# - pydantic
+# - pymongo
+# - python-dotenv
+# - requests

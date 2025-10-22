@@ -1,0 +1,31 @@
+{
+  "name": "meet-bot-recorder",
+  "version": "1.0.0",
+  "description": "Google Meet audio recorder using Puppeteer for AI Recruiter",
+  "main": "services/meet_bot/meet_recorder.js",
+  "scripts": {
+    "start": "node services/meet_bot/meet_recorder.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "google-meet",
+    "puppeteer",
+    "audio-recording",
+    "websocket",
+    "automation"
+  ],
+  "author": "AI Recruiter Team",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.6.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
