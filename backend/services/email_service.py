@@ -46,7 +46,10 @@ class EmailService:
         meet_link: str,
         scheduled_datetime: datetime,
         duration_minutes: int,
-        interview_id: str
+        interview_id: str,
+        auto_start_bot: bool = True,
+        auto_join_token: str = None,
+        backend_url: str = "http://localhost:8001"
     ) -> Dict[str, Any]:
         """
         Send interview invitation email
@@ -77,6 +80,20 @@ class EmailService:
             
             # Build email
             subject = f"🎯 Interview Invitation - {job_title}"
+            
+            # Build trigger URL or direct meeting link
+            if auto_start_bot and auto_join_token:
+                # Use trigger endpoint for auto-bot joining
+                button_link = f"{backend_url}/api/meet/trigger/{interview_id}?token={auto_join_token}"
+                button_text = "🚀 Start Interview Now"
+                button_color = "#10b981"
+                sub_text = "✨ Bot will automatically join when you click"
+            else:
+                # Direct Google Meet link (no auto-bot)
+                button_link = meet_link
+                button_text = "🔗 Join Interview"
+                button_color = "#667eea"
+                sub_text = "Click to join the meeting"
             
             # HTML email body
             html_body = f"""
@@ -115,16 +132,18 @@ class EmailService:
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{meet_link}" class="button">🔗 Join Interview</a>
+                <a href="{button_link}" class="button" style="background: {button_color}; font-size: 18px;">{button_text}</a>
+                <p style="font-size: 12px; color: #888; margin-top: 10px;">{sub_text}</p>
             </div>
             
             <div class="info-box">
                 <h3>📌 Important Notes</h3>
                 <ul>
+                    <li>Click <strong>"Start Interview Now"</strong> button above when ready</li>
+                    <li>The <strong>AI interviewer bot will automatically join</strong> the meeting</li>
                     <li>Please join <strong>5 minutes before</strong> the scheduled time</li>
                     <li>Ensure you have a <strong>stable internet connection</strong></li>
                     <li>Test your <strong>microphone and camera</strong> beforehand</li>
-                    <li>This is an <strong>AI-assisted interview</strong> - the AI interviewer will guide you</li>
                     <li>Be prepared to discuss your <strong>experience and skills</strong></li>
                 </ul>
             </div>

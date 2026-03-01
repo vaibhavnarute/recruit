@@ -16,7 +16,7 @@ Architecture:
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
 import json
 from google.oauth2.credentials import Credentials
@@ -230,6 +230,8 @@ Good luck! 🍀
                 'attendees': [
                     {'email': candidate_email, 'displayName': candidate_name},
                     {'email': hr_email, 'displayName': 'HR Recruiter'},
+                    # ✅ AUTOMATICALLY ADD BOT - Ensures bot can join without approval
+                    {'email': os.getenv('MEET_BOT_EMAIL', 'airecruiterbot@gmail.com'), 'displayName': 'AI Interview Bot'},
                 ],
                 # 🔐 CRITICAL: This is how we create LEGITIMATE Google Meet rooms
                 # - 'conferenceSolutionKey': {'type': 'hangoutsMeet'} tells Google to create a real Meet room
@@ -326,7 +328,7 @@ Good luck! 🍀
                 logger.warning("⚠️ No conference ID found in conferenceData")
             
             # Calculate expiration (24 hours from creation)
-            expires_at = datetime.utcnow() + timedelta(hours=24)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
             
             # Get refresh token (if available)
             refresh_token = None

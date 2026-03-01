@@ -33,7 +33,6 @@ class UserRepository:
         full_name: str,
         role: str = UserRole.HR,
         company: Optional[str] = None,
-        phone: Optional[str] = None,
         firebase_uid: Optional[str] = None
     ) -> Optional[str]:
         """
@@ -45,7 +44,6 @@ class UserRepository:
             full_name: User's full name
             role: User role (recruiter, admin, candidate)
             company: Company name
-            phone: Phone number
             
         Returns:
             User ID if successful, None otherwise
@@ -66,7 +64,6 @@ class UserRepository:
                 "full_name": full_name,
                 "role": role,
                 "company": company,
-                "phone": phone,
                 "firebase_uid": firebase_uid,  # Store Firebase UID for integration
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
@@ -308,7 +305,6 @@ class UserRepository:
                 "role": role,
                 "password": None,  # Firebase handles authentication
                 "company": None,
-                "phone": None,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
                 "is_active": True,

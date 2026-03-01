@@ -16,6 +16,7 @@ Architecture:
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional, List, TypedDict, Annotated
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -51,6 +52,7 @@ class InterviewScheduleState(TypedDict):
     scheduled_datetime: str  # ISO format
     duration_minutes: int
     interview_type: str  # "ai_assisted", "human", "hybrid"
+    auto_start_bot: Optional[bool]  # Enable auto-bot join feature
     
     # Processing data
     interview_id: str
@@ -227,6 +229,12 @@ class InterviewSchedulingAgent:
         # Validate datetime
         try:
             scheduled_dt = datetime.fromisoformat(state["scheduled_datetime"].replace('Z', '+00:00'))
+            # Ensure timezone-aware
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+            # Ensure scheduled_dt is timezone-aware
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
             
             # Check if datetime is in the future (use timezone-aware comparison)
             current_time = datetime.now(timezone.utc)
@@ -388,6 +396,9 @@ class InterviewSchedulingAgent:
         try:
             # Parse datetime for email
             scheduled_dt = datetime.fromisoformat(state["scheduled_datetime"].replace('Z', '+00:00'))
+            # Ensure timezone-aware
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
             
             # Prepare email content
             subject = f"Interview Invitation - {state['job_title']}"
@@ -438,7 +449,10 @@ This is an automated message. Please do not reply to this email.
                 meet_link=state['meet_link'],
                 scheduled_datetime=scheduled_dt,
                 duration_minutes=state['duration_minutes'],
-                interview_id=state['interview_id']
+                interview_id=state['interview_id'],
+                auto_start_bot=state.get('auto_start_bot', True),
+                auto_join_token=state.get('auto_join_token'),
+                backend_url=os.getenv('BACKEND_URL', 'http://localhost:8001')
             )
             
             if email_result.get("success", False):
@@ -491,6 +505,13 @@ This is an automated message. Please do not reply to this email.
         try:
             # Parse datetime
             scheduled_dt = datetime.fromisoformat(state["scheduled_datetime"].replace('Z', '+00:00'))
+            # Ensure timezone-aware
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+            
+            # Generate security token for auto-join (24-hour validity)
+            import secrets
+            auto_join_token = secrets.token_urlsafe(32)
             
             # Create interview document
             interview_data = {
@@ -513,8 +534,18 @@ This is an automated message. Please do not reply to this email.
                 "email_sent": state["email_sent"],
                 "status": "scheduled",
                 "created_at": datetime.utcnow(),
-                "created_by": state["hr_id"]
+                "created_by": state["hr_id"],
+                # Auto-join fields
+                "auto_start_bot": state.get("auto_start_bot", True),
+                "auto_join_token": auto_join_token,
+                "bot_join_status": "pending",
+                "candidate_joined_at": None,
+                "bot_joined_at": None,
+                "trigger_timestamp": None
             }
+            
+            # Store token in state for email
+            state["auto_join_token"] = auto_join_token
             
             # Save to MongoDB
             logger.info(f"💾 Inserting interview document: {state['interview_id']}")
@@ -531,7 +562,9 @@ This is an automated message. Please do not reply to this email.
                 calendar_event_id=state["calendar_event_id"],
                 calendar_link=state["calendar_link"],
                 refresh_token=state.get("refresh_token"),
-                expires_at=state["expires_at"]
+                expires_at=state["expires_at"],
+                auto_start_bot=state.get("auto_start_bot", True),
+                auto_join_token=auto_join_token
             )
             
             if saved_interview:
@@ -624,7 +657,8 @@ This is an automated message. Please do not reply to this email.
         scheduled_datetime: str,
         duration_minutes: int = 30,
         interview_type: str = "ai_assisted",
-        candidate_id: Optional[str] = None
+        candidate_id: Optional[str] = None,
+        auto_start_bot: bool = True
     ) -> Dict[str, Any]:
         """
         Main entry point for scheduling an interview
@@ -661,6 +695,7 @@ This is an automated message. Please do not reply to this email.
             "scheduled_datetime": scheduled_datetime,
             "duration_minutes": duration_minutes,
             "interview_type": interview_type,
+            "auto_start_bot": auto_start_bot,
             "interview_id": "",
             "context_id": "",
             "meet_link": None,

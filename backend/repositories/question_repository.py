@@ -30,9 +30,18 @@ class QuestionRepository:
         if not mongo_uri:
             raise ValueError("MONGODB_URI or MONGO_URI not found in environment variables")
         
-        self.client = MongoClient(mongo_uri)
+        # Configure MongoDB client with proper timeout settings for Atlas
+        self.client = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=10000,  # 10 seconds
+            connectTimeoutMS=10000,  # 10 seconds
+            socketTimeoutMS=45000,  # 45 seconds for operations
+            maxPoolSize=50,
+            retryWrites=True,
+            retryReads=True
+        )
         # Use database name from environment or default
-        db_name = os.getenv("MONGO_DB_NAME", "ai_recruiter")
+        db_name = os.getenv("MONGO_DB_NAME", "resumate")
         self.db = self.client.get_database(db_name)
         self.questions_collection = self.db.get_collection("interview_questions")
         

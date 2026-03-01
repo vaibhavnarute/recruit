@@ -69,7 +69,6 @@ class MongoDBService:
                 "role": role,
                 "firebase_uid": kwargs.get("firebase_uid"),
                 "company": kwargs.get("company"),
-                "phone": kwargs.get("phone"),
                 "profile_image": kwargs.get("profile_image"),
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),

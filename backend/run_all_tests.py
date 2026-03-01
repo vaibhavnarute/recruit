@@ -2,125 +2,206 @@
 Master Test & Validation Script
 
 Runs all tests and validations in sequence.
+Updated: 2025-10-28 - Added comprehensive validation suite
 """
 
 import sys
+import io
 import subprocess
+import time
 from pathlib import Path
+from datetime import datetime
+
+# Fix Unicode encoding for Windows console
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 
-def run_script(script_name, description):
+def run_script(script_name, description, required=True):
     """Run a Python script and return success status"""
-    print(f"\n{'='*70}")
-    print(f"🏃 Running: {description}")
-    print(f"{'='*70}\n")
+    print(f"\n{'='*80}")
+    print(f"🧪 {description}")
+    print(f"{'='*80}\n")
+    
+    start_time = time.time()
     
     try:
         result = subprocess.run(
             [sys.executable, script_name],
             capture_output=False,
             text=True,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).parent,
+            timeout=120,  # 2 minute timeout
+            encoding='utf-8',
+            errors='replace'
         )
         
+        duration = time.time() - start_time
         success = result.returncode == 0
         
         if success:
-            print(f"\n✅ {description} - PASSED")
+            print(f"\n✅ {description} - PASSED ({duration:.1f}s)")
         else:
-            print(f"\n❌ {description} - FAILED")
+            if required:
+                print(f"\n❌ {description} - FAILED ({duration:.1f}s)")
+            else:
+                print(f"\n⚠️  {description} - FAILED ({duration:.1f}s) [Optional]")
         
-        return success
+        return success, duration
+        
+    except subprocess.TimeoutExpired:
+        duration = time.time() - start_time
+        print(f"\n❌ {description} - TIMEOUT ({duration:.1f}s)")
+        return False, duration
         
     except Exception as e:
-        print(f"\n❌ {description} - ERROR: {str(e)}")
-        return False
+        duration = time.time() - start_time
+        print(f"\n❌ {description} - ERROR: {str(e)} ({duration:.1f}s)")
+        return False, duration
 
 
 def main():
     """Run all validation scripts"""
-    print("="*70)
-    print("🚀 RESUMATE - MASTER VALIDATION SUITE")
-    print("="*70)
-    print("\nThis will run all validation scripts in sequence:")
-    print("1. Project Structure")
-    print("2. MongoDB Connection")
-    print("3. Application Startup")
-    print("4. Repository Tests")
-    print("5. Integration Tests")
-    print("6. Feature Documentation")
+    print("="*80)
+    print("🚀 RESUMATE - COMPREHENSIVE TEST SUITE")
+    print("="*80)
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Database: resumate (cleaned - old databases removed)")
+    print("\nTest Sequence:")
+    print("  1. Database Consistency Verification")
+    print("  2. MongoDB Connection Test") 
+    print("  3. Validation Checklist (5 Production Tests)")
+    print("  4. Performance Test (4 Workers)")
+    print("  5. Real-time Orchestration Test")
+    print("  6. Analytics Engine Test")
     
     input("\nPress Enter to continue...")
     
-    results = {}
+    results = []
+    total_duration = 0
     
-    # 1. Show project structure
-    results['structure'] = run_script(
-        'show_structure.py',
-        'Project Structure Display'
-    )
+    # Core Infrastructure Tests (REQUIRED)
+    print("\n" + "="*80)
+    print("📋 PHASE 1: CORE INFRASTRUCTURE TESTS (Required)")
+    print("="*80)
     
-    # 2. Test MongoDB connection
-    results['connection'] = run_script(
-        'test_mongo_connection.py',
-        'MongoDB Connection Test'
-    )
+    success, duration = run_script('verify_db_consistency.py', '1. Database Consistency Verification', required=True)
+    results.append(('Database Consistency', success, duration, True))
+    total_duration += duration
     
-    # 3. Run startup checks
-    results['startup'] = run_script(
-        'startup.py',
-        'Application Startup Checks'
-    )
+    success, duration = run_script('test_mongodb_connection.py', '2. MongoDB Connection Test', required=True)
+    results.append(('MongoDB Connection', success, duration, True))
+    total_duration += duration
     
-    # 4. Test repositories
-    results['repositories'] = run_script(
-        'test_repositories.py',
-        'Repository Tests'
-    )
+    # Production Readiness Tests (REQUIRED)
+    print("\n" + "="*80)
+    print("📋 PHASE 2: PRODUCTION READINESS VALIDATION (Required)")
+    print("="*80)
     
-    # 5. Run integration tests
-    results['integration'] = run_script(
-        'test_integration.py',
-        'Integration Tests'
-    )
+    success, duration = run_script('test_validation_checklist.py', '3. Validation Checklist (5 Critical Tests)', required=True)
+    results.append(('Validation Checklist', success, duration, True))
+    total_duration += duration
     
-    # 6. Generate documentation
-    results['documentation'] = run_script(
-        'generate_documentation.py',
-        'Feature Documentation'
-    )
+    # Performance Tests (OPTIONAL)
+    print("\n" + "="*80)
+    print("📋 PHASE 3: PERFORMANCE & SCALING TESTS (Optional)")
+    print("="*80)
+    
+    success, duration = run_script('test_performance_4_workers.py', '4. Performance Test - 4 Workers', required=False)
+    results.append(('Performance Test', success, duration, False))
+    total_duration += duration
+    
+    # Component Tests (OPTIONAL)
+    print("\n" + "="*80)
+    print("📋 PHASE 4: COMPONENT TESTS (Optional)")
+    print("="*80)
+    
+    success, duration = run_script('test_realtime_orchestration.py', '5. Real-time Orchestration', required=False)
+    results.append(('Realtime Orchestration', success, duration, False))
+    total_duration += duration
+    
+    success, duration = run_script('test_analytics_engine.py', '6. Analytics Engine', required=False)
+    results.append(('Analytics Engine', success, duration, False))
+    total_duration += duration
     
     # Display final summary
-    print("\n" + "="*70)
-    print("📊 FINAL VALIDATION SUMMARY")
-    print("="*70)
+    print("\n" + "="*80)
+    print("📊 FINAL TEST RESULTS SUMMARY")
+    print("="*80)
+    print(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Total Duration: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
     
+    # Calculate statistics
     total = len(results)
-    passed = sum(1 for v in results.values() if v)
+    passed = sum(1 for _, success, _, _ in results if success)
     failed = total - passed
     
-    print(f"\nTotal Validations: {total}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    print(f"Success Rate: {(passed/total*100):.1f}%")
+    required_tests = [(name, success, dur) for name, success, dur, req in results if req]
+    required_passed = sum(1 for _, success, _ in required_tests if success)
+    required_failed = len(required_tests) - required_passed
+    
+    optional_tests = [(name, success, dur) for name, success, dur, req in results if not req]
+    optional_passed = sum(1 for _, success, _ in optional_tests if success)
+    
+    print(f"\nTotal Tests Run: {total}")
+    print(f"Total Passed: {passed}/{total} ({passed/total*100:.1f}%)")
+    print(f"Total Failed: {failed}/{total}")
+    
+    print(f"\nRequired Tests (Must Pass):")
+    print(f"  ✅ Passed: {required_passed}/{len(required_tests)}")
+    print(f"  ❌ Failed: {required_failed}/{len(required_tests)}")
+    
+    if optional_tests:
+        print(f"\nOptional Tests:")
+        print(f"  ✅ Passed: {optional_passed}/{len(optional_tests)}")
+        print(f"  ❌ Failed: {len(optional_tests) - optional_passed}/{len(optional_tests)}")
     
     print("\nDetailed Results:")
-    for test_name, success in results.items():
+    print("┌────┬─────────────────────────────────────┬──────────┬──────────┬──────────┐")
+    print("│ #  │ Test Name                           │ Status   │ Duration │ Required │")
+    print("├────┼─────────────────────────────────────┼──────────┼──────────┼──────────┤")
+    
+    for i, (name, success, duration, required) in enumerate(results, 1):
         status = "✅ PASS" if success else "❌ FAIL"
-        print(f"   {status} - {test_name.replace('_', ' ').title()}")
+        req_str = "Yes" if required else "No"
+        name_padded = name[:35].ljust(35)
+        dur_str = f"{duration:.1f}s".rjust(8)
+        req_padded = req_str.center(8)
+        
+        print(f"│ {i:2d} │ {name_padded} │ {status} │ {dur_str} │ {req_padded} │")
     
-    all_passed = all(results.values())
+    print("└────┴─────────────────────────────────────┴──────────┴──────────┴──────────┘")
     
-    if all_passed:
-        print("\n🎉 ALL VALIDATIONS PASSED!")
-        print("✅ Your application is fully configured and ready to use!")
+    all_passed = all(success for _, success, _, _ in results)
+    required_all_passed = required_failed == 0
+    
+    print("\n" + "="*80)
+    
+    if required_all_passed:
+        print("🎉 SUCCESS! All required tests passed!")
+        print("✅ System is PRODUCTION READY!")
+        
+        if failed > 0:
+            print(f"\n⚠️  Note: {failed} optional test(s) failed")
+            print("   These don't affect production readiness")
+        
         print("\n🚀 Next Steps:")
-        print("   1. Start the Flask app: python app.py")
-        print("   2. Start the FastAPI app: python main.py")
-        print("   3. Access the application in your browser")
+        print("   1. Deploy with: uvicorn main:app --host 0.0.0.0 --port 8001 --workers 4")
+        print("   2. Monitor metrics: /api/distributed/orchestration/workers")
+        print("   3. Run production monitoring")
+        return 0
     else:
-        print("\n⚠️  SOME VALIDATIONS FAILED")
-        print("Please review the errors above and fix them before proceeding")
+        print("❌ FAILURE: Required tests failed")
+        print("⚠️  System needs fixes before production")
+        
+        print(f"\nFailed Required Tests:")
+        for name, success, _, required in results:
+            if required and not success:
+                print(f"  ❌ {name}")
+        
+        print("\nPlease fix these issues and run the tests again")
+        return 1
     
     print("="*70)
     

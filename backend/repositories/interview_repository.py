@@ -44,7 +44,9 @@ class InterviewRepository:
         calendar_event_id: Optional[str] = None,
         calendar_link: Optional[str] = None,
         refresh_token: Optional[str] = None,
-        expires_at: Optional[str] = None
+        expires_at: Optional[str] = None,
+        auto_start_bot: bool = True,
+        auto_join_token: Optional[str] = None
     ) -> Optional[Dict]:
         """
         Create an interview
@@ -108,7 +110,14 @@ class InterviewRepository:
                 "status": "scheduled",  # scheduled, in_progress, completed, cancelled
                 "ai_enabled": interview_type in ["ai_assisted", "hybrid"],
                 "questions_generated": False,
-                "interview_data": {}
+                "interview_data": {},
+                # Auto-join fields
+                "auto_start_bot": auto_start_bot,
+                "auto_join_token": auto_join_token,
+                "bot_join_status": "pending" if auto_start_bot else None,
+                "candidate_joined_at": None,
+                "bot_joined_at": None,
+                "trigger_timestamp": None
             }
             
             result = self.collection.insert_one(interview_doc)
@@ -195,6 +204,41 @@ class InterviewRepository:
             return result.modified_count > 0
         except Exception as e:
             logger.error(f"❌ Failed to update interview status: {str(e)}")
+            return False
+    
+    def update_interview(self, interview_id: str, update_data: dict) -> bool:
+        """
+        Update interview with arbitrary fields
+        
+        Args:
+            interview_id: Interview ID (UUID) or MongoDB ObjectId
+            update_data: Dictionary of fields to update
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Try to find by interview_id field first (UUID)
+            result = self.collection.update_one(
+                {"interview_id": interview_id},
+                {"$set": {**update_data, "updated_at": datetime.utcnow()}}
+            )
+            
+            # If not found, try MongoDB _id
+            if result.matched_count == 0:
+                try:
+                    result = self.collection.update_one(
+                        {"_id": ObjectId(interview_id)},
+                        {"$set": {**update_data, "updated_at": datetime.utcnow()}}
+                    )
+                except:
+                    pass
+            
+            if result.modified_count > 0:
+                logger.info(f"✅ Updated interview {interview_id}: {list(update_data.keys())}")
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"❌ Failed to update interview: {str(e)}")
             return False
     
     def mark_questions_generated(self, interview_id: str) -> bool:

@@ -19,9 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { API_ENDPOINTS } from '@/config/api';
 import * as pdfjsLib from 'pdfjs-dist';
-
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import '@/lib/pdfWorker';
 
 export const extractTextFromPdf = async (file: File): Promise<string> => {
   try {

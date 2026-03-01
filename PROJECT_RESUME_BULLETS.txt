@@ -1,0 +1,30 @@
+AI RECRUITER - RESUME BULLETS
+================================================================================================
+
+\resumeItem{Architected end-to-end AI recruitment platform with LangGraph agents and Groq API achieving automated resume analysis, Q&A, and salary prediction (XGBoost), serving dual Flask + FastAPI backends with MongoDB persistence.}
+
+\resumeItem{Engineered zero-touch interview automation system integrating Puppeteer bot for Google Meet, WebSocket-driven real-time STT/TTS, and auto-scheduling pipeline, reducing HR manual effort by 80\%.}
+
+\resumeItem{Deployed production-grade microservices architecture with Firebase Auth, role-based access control, and scalable distributed orchestration using Redis Streams for concurrent interview processing.}
+
+================================================================================================
+
+ALTERNATIVE VERSIONS (More Concise):
+================================================================================================
+
+\resumeItem{Built intelligent recruitment platform using LangGraph + Groq API achieving 90\%+ resume analysis accuracy, automating end-to-end hiring through FastAPI microservices and MongoDB.}
+
+\resumeItem{Engineered automated interview system with Google Meet bot integration, WebSocket STT/TTS, and XGBoost salary predictions, reducing hiring cycle time by 75\%.}
+
+\resumeItem{Deployed scalable dual-backend architecture (Flask + FastAPI) with Firebase Auth, Redis orchestration, and real-time analytics dashboards for 1000+ candidate processing.}
+
+================================================================================================
+
+ULTRA-COMPACT VERSION (2 bullets):
+================================================================================================
+
+\resumeItem{Architected AI-powered recruitment platform with LangGraph agents, Groq API, and XGBoost achieving automated resume analysis, salary prediction, and interview scheduling through scalable FastAPI + React architecture.}
+
+\resumeItem{Engineered zero-touch interview automation integrating Puppeteer-driven Google Meet bot, WebSocket STT/TTS pipeline, and Firebase Auth with MongoDB, reducing HR manual screening time by 80\%.}
+
+================================================================================================

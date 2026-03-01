@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { detectIntent } from '@/services/intentDetection';
+import '@/lib/pdfWorker';
 
 interface Message {
   type: 'user' | 'ai';
@@ -163,6 +164,7 @@ const HRChatbot: React.FC<HRChatbotProps> = ({ onSelectFunction }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState<string>(''); // Store extracted text
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -259,6 +261,7 @@ const HRChatbot: React.FC<HRChatbotProps> = ({ onSelectFunction }) => {
     const file = e.target.files?.[0];
     if (file) {
       setResumeFile(file);
+      setResumeText(''); // Clear stored text when new file is uploaded
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
     }
@@ -361,10 +364,24 @@ ${data.top_candidates ? data.top_candidates.map((candidate: any, index: number) 
     }]);
 
     try {
+      // Extract text from PDF once and store it for Q&A (non-blocking)
+      if (!resumeText) {
+        try {
+          const extractedText = await extractTextFromPdf(resumeFile);
+          setResumeText(extractedText);
+          console.log('✅ Resume text extracted and stored for Q&A:', extractedText.length, 'characters');
+        } catch (extractError) {
+          console.warn('⚠️ Frontend PDF extraction failed (will extract on backend):', extractError);
+          // Don't throw error - backend will extract the PDF for analysis
+          // We'll try to extract again when Q&A is used
+        }
+      }
+
       const formData = new FormData();
-      formData.append('resume', resumeFile);
+      // Backend expects 'resume_files' (one or multiple) + job_description + threshold
       formData.append('job_description', jobDescription);
-      formData.append('job_title', jobTitle);
+      formData.append('threshold', String(50));
+      formData.append('resume_files', resumeFile);
 
       const response = await fetch(API_ENDPOINTS.analyze, {
         method: 'POST',
@@ -377,23 +394,40 @@ ${data.top_candidates ? data.top_candidates.map((candidate: any, index: number) 
       }
 
       const data = await response.json();
-      
+
+      // The Flask /api/analyze endpoint returns a list of results
+      const first = Array.isArray(data?.results) && data.results.length > 0 ? data.results[0] : undefined;
+      const rawScore = first?.similarity ?? first?.match_score ?? 0;
+      const matchScore = typeof rawScore === 'number'
+        ? (rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore))
+        : 0;
+      const matchingSkills = Array.isArray(first?.matching_skills) ? first.matching_skills : [];
+      const missingSkills = Array.isArray(first?.missing_skills) ? first.missing_skills : [];
+      const strengthsArr = Array.isArray(first?.strengths) ? first.strengths : [];
+      let improvements = Array.isArray(first?.areas_for_improvement)
+        ? first.areas_for_improvement
+        : (Array.isArray(first?.improvement_areas) ? first.improvement_areas : []);
+      // Fallback: if backend didn't provide improvements, derive from missing skills
+      if ((!improvements || improvements.length === 0) && Array.isArray(missingSkills) && missingSkills.length > 0) {
+        improvements = missingSkills.map((skill: string) => `Strengthen ${skill} with hands-on projects and practice`);
+      }
+
       const analysisResult = `
 Resume Analysis Results:
 ------------------------
-Match Score: ${data.match_score}%
+Match Score: ${matchScore}%
 
 Matching Skills:
-${data.matching_skills.map((skill: string) => `- ${skill}`).join('\n')}
+${matchingSkills.map((skill: string) => `- ${skill}`).join('\n')}
 
 Missing Skills:
-${data.missing_skills.map((skill: string) => `- ${skill}`).join('\n')}
+${missingSkills.map((skill: string) => `- ${skill}`).join('\n')}
 
 Strengths:
-${data.strengths.map((strength: string) => `- ${strength}`).join('\n')}
+${strengthsArr.map((strength: string) => `- ${strength}`).join('\n')}
 
 Areas for Improvement:
-${data.areas_for_improvement.map((area: string) => `- ${area}`).join('\n')}
+${improvements.map((area: string) => `- ${area}`).join('\n')}
       `;
 
       setMessages(prev => [...prev, {
@@ -427,16 +461,40 @@ ${data.areas_for_improvement.map((area: string) => `- ${area}`).join('\n')}
     }]);
 
     try {
-      // First, extract text from the PDF
-      const resumeText = await extractTextFromPdf(resumeFile);
+      // Use stored resume text or extract if not available
+      let textToUse = resumeText;
+      let sendFile = false;
+      
+      if (!textToUse) {
+        console.log('⚠️ Resume text not found in state, attempting to extract from PDF...');
+        try {
+          textToUse = await extractTextFromPdf(resumeFile);
+          setResumeText(textToUse);
+          console.log('✅ Resume text extracted successfully:', textToUse.length, 'characters');
+        } catch (extractError) {
+          console.warn('⚠️ Frontend extraction failed, will send PDF to backend:', extractError);
+          // Instead of throwing error, we'll send the file to backend
+          sendFile = true;
+        }
+      } else {
+        console.log('✅ Using stored resume text:', textToUse.length, 'characters');
+      }
 
-      const formData = new FormData();
-      formData.append('resume_text', resumeText);
-      formData.append('question', question);
+      if (sendFile) {
+        // Flask QA endpoint expects JSON only (resume_text + question)
+        // If we failed to extract text on the frontend, abort with guidance
+        throw new Error('Resume text extraction failed. Please try again or upload a clearer PDF.');
+      }
 
       const response = await fetch(API_ENDPOINTS.qa, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          resume_text: textToUse || '',
+          question
+        })
       });
 
       if (!response.ok) {

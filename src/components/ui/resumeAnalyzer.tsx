@@ -9,7 +9,9 @@ import { toast } from "@/components/ui/use-toast";
 import { Loader2, Upload, FileText, Settings, Send, Download, CheckCircle2, XCircle, ClipboardCheck, Video } from 'lucide-react';
 import { motion } from "framer-motion";
 import { useTheme } from '../../context/ThemeContext';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import '@/lib/pdfWorker';
+import { loginUser } from '../../services/authService';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -313,6 +315,71 @@ const ResumeAnalyzer: React.FC = () => {
 
         if (failCount > 0) {
           console.error('Failed email sends:', emailData.results.filter((r: EmailResult) => !r.success));
+        }
+
+        // Step 3: Inform backend of acceptances for logging/recording
+        if (action === 'accept') {
+          try {
+            const firebaseUser = auth.currentUser;
+            if (!firebaseUser || !firebaseUser.email) {
+              console.warn('[send-acceptance] Missing authenticated Firebase user; skipping backend selection logging');
+            } else {
+              const authResp = await loginUser(firebaseUser.uid, firebaseUser.email);
+              const hrId = authResp?.user?._id || '';
+              const hrEmail = authResp?.user?.email || firebaseUser.email || '';
+              const hrName = authResp?.user?.full_name || '';
+              const batchId = undefined;
+
+              if (!hrId) {
+                console.warn('[send-acceptance] Missing Mongo user _id; skipping backend selection logging');
+                return;
+              }
+              const candidates = selectedResumes.map(index => {
+                const res = results[index];
+                return {
+                  candidate_name: (res.names && res.names[0]) || 'Unknown',
+                  candidate_email: (res.emails && res.emails[0]) || undefined,
+                  match_score: typeof res.similarity === 'number' ? res.similarity : undefined,
+                  ats_score: typeof res.similarity === 'number' ? res.similarity : undefined,
+                  matching_skills: [],
+                  missing_skills: [],
+                  strengths: [],
+                  improvement_areas: []
+                };
+              });
+
+              const payload = {
+                hr_id: hrId,
+                hr_email: hrEmail,
+                hr_name: hrName,
+                job_description: jobDescription,
+                batch_id: batchId,
+                selection_method: 'manual',
+                candidates
+              };
+
+              const resp = await fetch(`${API_BASE_URL}/send-acceptance`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (!resp.ok) {
+                console.warn('[send-acceptance] Non-OK response:', resp.status);
+              } else {
+                const data = await resp.json();
+                if (!data.success) {
+                  console.warn('[send-acceptance] Backend reported issues:', data.summary || data.error, data.results);
+                } else {
+                  console.log('[send-acceptance] Backend selection log success:', data.summary);
+                }
+              }
+            }
+          } catch (saErr) {
+            console.warn('[send-acceptance] Failed to notify backend of acceptances:', saErr);
+          }
         }
       } else {
         throw new Error(emailData.error || 'Failed to send emails');
@@ -695,6 +762,7 @@ const ResumeAnalyzer: React.FC = () => {
                       <XCircle className="mr-2 h-4 w-4" />
                       Reject Others
                     </Button>
+                    {/*
                     <Button
                       onClick={() => navigate('/interview/swarup')}
                       className="bg-gradient-to-r from-purple-400 to-pink-500 hover:from-purple-500 hover:to-pink-600 text-white font-semibold"
@@ -702,6 +770,7 @@ const ResumeAnalyzer: React.FC = () => {
                       <Video className="mr-2 h-4 w-4" />
                       Start Video Interview
                     </Button>
+                    */}
                     <Button
                       onClick={handleDownloadCSV}
                       variant="outline"

@@ -165,6 +165,7 @@ const EmployeeChatbot: React.FC<EmployeeChatbotProps> = ({ onSelectFunction }) =
   const [inputMessage, setInputMessage] = useState('');
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState<string>(''); // Store extracted text
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -276,6 +277,7 @@ const EmployeeChatbot: React.FC<EmployeeChatbotProps> = ({ onSelectFunction }) =
     const file = e.target.files?.[0];
     if (file) {
       setResumeFile(file);
+      setResumeText(''); // Clear stored text when new file is uploaded
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
     }
@@ -305,6 +307,19 @@ const EmployeeChatbot: React.FC<EmployeeChatbotProps> = ({ onSelectFunction }) =
     }]);
 
     try {
+      // Extract text from PDF once and store it for Q&A (non-blocking)
+      if (!resumeText) {
+        try {
+          const extractedText = await extractTextFromPdf(resumeFile);
+          setResumeText(extractedText);
+          console.log('✅ Resume text extracted and stored for Q&A:', extractedText.length, 'characters');
+        } catch (extractError) {
+          console.warn('⚠️ Frontend PDF extraction failed (will extract on backend):', extractError);
+          // Don't throw error - backend will extract the PDF for analysis
+          // We'll try to extract again when Q&A is used
+        }
+      }
+
       const formData = new FormData();
       formData.append('resume', resumeFile);
       formData.append('job_description', jobDescription);
@@ -371,11 +386,36 @@ ${data.areas_for_improvement.map((area: string) => `- ${area}`).join('\n')}
     }]);
 
     try {
-      // First, extract text from the PDF
-      const resumeText = await extractTextFromPdf(resumeFile);
+      // Use stored resume text or extract if not available
+      let textToUse = resumeText;
+      let sendFile = false;
+      
+      if (!textToUse) {
+        console.log('⚠️ Resume text not found in state, attempting to extract from PDF...');
+        try {
+          textToUse = await extractTextFromPdf(resumeFile);
+          setResumeText(textToUse);
+          console.log('✅ Resume text extracted successfully:', textToUse.length, 'characters');
+        } catch (extractError) {
+          console.warn('⚠️ Frontend extraction failed, will send PDF to backend:', extractError);
+          // Instead of throwing error, we'll send the file to backend
+          sendFile = true;
+        }
+      } else {
+        console.log('✅ Using stored resume text:', textToUse.length, 'characters');
+      }
 
       const formData = new FormData();
-      formData.append('resume_text', resumeText);
+      
+      if (sendFile) {
+        // Backend will extract the PDF
+        formData.append('resume_file', resumeFile);
+        console.log('📤 Sending PDF file to backend for extraction');
+      } else {
+        // Use the extracted text
+        formData.append('resume_text', textToUse);
+      }
+      
       formData.append('question', question);
 
       const response = await fetch(API_ENDPOINTS.qa, {
@@ -531,13 +571,38 @@ ${q.question}
 
       if (data.suggestions && Array.isArray(data.suggestions)) {
         const formattedMessage = `Resume Improvement Analysis for ${targetRole}:\n\n` +
-          data.suggestions.map(suggestion => 
-            `${suggestion.area}:\n` +
-            `Suggestions:\n` +
-            suggestion.suggestions.map(s => `- ${s}`).join('\n') +
-            (suggestion.example ? `\nExample:\n${suggestion.example}` : '') +
-            '\n'
-          ).join('\n');
+          data.suggestions.map(suggestion => {
+            // Ensure example is always a string and doesn't contain JSON syntax
+            let exampleText = '';
+            if (suggestion.example) {
+              if (typeof suggestion.example === 'string') {
+                exampleText = suggestion.example;
+                
+                // Note: Removed JSON syntax detection to allow natural language with commas
+                // Examples can now include commas naturally without being flagged as JSON
+              } else if (typeof suggestion.example === 'object') {
+                // If it's an object, try to extract meaningful content
+                console.warn('Warning: example is an object, converting to string:', suggestion.example);
+                if (suggestion.example.description) {
+                  exampleText = suggestion.example.description;
+                } else if (suggestion.example.text) {
+                  exampleText = suggestion.example.text;
+                } else {
+                  // Generate a fallback instead of stringifying JSON
+                  exampleText = `As a ${targetRole}, I gained expertise in ${suggestion.area} through practical application and professional development.`;
+                }
+              } else {
+                // Convert any other type to string
+                exampleText = String(suggestion.example);
+              }
+            }
+            
+            return `${suggestion.area}:\n` +
+              `Suggestions:\n` +
+              suggestion.suggestions.map(s => `• ${s}`).join('\n') +
+              (exampleText ? `\n\nExample:\n${exampleText}` : '') +
+              '\n';
+          }).join('\n');
 
         setMessages(prev => [...prev, {
           type: 'ai',
@@ -683,7 +748,7 @@ You can now download the improved resume content.
     }]);
 
     try {
-      // Convert string values to numbers for calculation
+      // Convert string values to numbers for validation
       const years_experience = parseFloat(experience);
       const skill_match_score = parseFloat(skills);
       
@@ -691,45 +756,52 @@ You can now download the improved resume content.
         throw new Error('Please enter valid numeric values');
       }
       
-      // Calculate scores using the same logic as CandidatePredictor
-      const experienceScore = Math.min(years_experience / 10, 1) * 0.3;
-      const skillScore = skill_match_score * 0.4;
-      
-      let educationScore = 0;
-      switch (education) {
-        case 'High School': educationScore = 0.1; break;
-        case 'Associate': educationScore = 0.2; break;
-        case 'Bachelor': educationScore = 0.3; break;
-        case 'Master': educationScore = 0.4; break;
-        case 'PhD': educationScore = 0.5; break;
-        default: educationScore = 0.3;
+      if (skill_match_score < 0 || skill_match_score > 1) {
+        throw new Error('Skill match score must be between 0 and 1');
       }
-      educationScore *= 0.15;
-      
-      let levelScore = 0;
-      switch (jobLevel) {
-        case 'Entry-level': levelScore = 0.7; break;
-        case 'Mid-level': levelScore = 0.5; break;
-        case 'Senior': levelScore = 0.3; break;
-        case 'Executive': levelScore = 0.2; break;
-        default: levelScore = 0.5;
+
+      // Call backend ML prediction API
+      const formData = new FormData();
+      formData.append('years_experience', years_experience.toString());
+      formData.append('education_level', education);
+      formData.append('job_level', jobLevel);
+      formData.append('industry', industry);
+      formData.append('skill_match_score', skill_match_score.toString());
+
+      const response = await fetch(API_ENDPOINTS.predictJobPossibility, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
       }
-      levelScore *= 0.1;
+
+      const result = await response.json();
       
-      const industryScore = 0.05;
-      const probability = experienceScore + skillScore + educationScore + levelScore + industryScore;
-      const prediction = probability > 0.6;
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Extract results from ML model prediction
+      const { probability, recommended, confidence, feature_importance } = result;
       
-      const recommendation = prediction 
+      const recommendation = recommended 
         ? "Candidate is recommended for the position" 
         : "Candidate is not recommended for the position";
+
+      // Format feature importance for display
+      const featureImportanceText = Object.entries(feature_importance)
+        .map(([feature, importance]) => `  ${feature}: ${importance}%`)
+        .join('\n');
 
       const formattedMessage = `
 Job Possibility Prediction Results:
 --------------------------------
 ${recommendation}
 
-Confidence Score: ${(probability * 100).toFixed(2)}%
+Probability: ${(probability * 100).toFixed(2)}%
+Model Confidence: ${(confidence * 100).toFixed(2)}%
 
 Candidate Details:
 ----------------
@@ -738,6 +810,12 @@ Skill Match Score: ${skill_match_score}
 Education Level: ${education}
 Job Level: ${jobLevel}
 Industry: ${industry}
+
+Feature Importance:
+------------------
+${featureImportanceText}
+
+✨ Prediction powered by XGBoost ML model
       `;
 
       setMessages(prev => [...prev, {
@@ -771,65 +849,52 @@ Industry: ${industry}
     }]);
 
     try {
-      // Convert string values to numbers for calculation
+      // Convert string values to numbers for validation
       const years_experience = parseFloat(experience);
       
-      if (isNaN(years_experience)) {
-        throw new Error('Please enter valid numeric values');
+      if (isNaN(years_experience) || years_experience < 0) {
+        throw new Error('Please enter a valid positive number for years of experience');
       }
+
+      // Call backend ML prediction API
+      const formData = new FormData();
+      formData.append('years_experience', years_experience.toString());
+      formData.append('education_level', education);
+      formData.append('job_level', jobLevel);
+      formData.append('industry', industry);
+      formData.append('location', location);
+
+      const response = await fetch(API_ENDPOINTS.predictSalary, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
       
-      // Calculate salary using the same logic as SalaryPredictor
-      const base_salary = 30000;
-      const exp_factor = years_experience * 2000;
-      
-      // Education factor
-      const edu_mapping: {[key: string]: number} = {
-        'High School': 0,
-        'Associate': 5000,
-        'Bachelor': 15000,
-        'Master': 25000,
-        'PhD': 35000
-      };
-      const edu_factor = edu_mapping[education] || 15000;
-      
-      // Job level factor
-      const level_mapping: {[key: string]: number} = {
-        'Entry-level': 0,
-        'Mid-level': 20000,
-        'Senior': 40000,
-        'Executive': 80000
-      };
-      const level_factor = level_mapping[jobLevel] || 20000;
-      
-      // Industry factor
-      const industry_mapping: {[key: string]: number} = {
-        'Technology': 15000,
-        'Finance': 12000,
-        'Healthcare': 10000,
-        'Education': 5000,
-        'Manufacturing': 8000,
-        'Retail': 3000
-      };
-      const industry_factor = industry_mapping[industry] || 15000;
-      
-      // Location factor
-      const location_mapping: {[key: string]: number} = {
-        'Urban': 10000,
-        'Suburban': 5000,
-        'Rural': 0
-      };
-      const location_factor = location_mapping[location] || 10000;
-      
-      // Calculate salary
-      const predicted_salary = base_salary + exp_factor + edu_factor + level_factor + industry_factor + location_factor;
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Extract results from ML model prediction
+      const { predicted_salary, confidence, feature_importance } = result;
       
       // Format salary for display
       const formatted_salary = `$${predicted_salary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      // Format feature importance for display
+      const featureImportanceText = Object.entries(feature_importance)
+        .map(([feature, importance]) => `  ${feature}: ${importance}%`)
+        .join('\n');
 
       const formattedMessage = `
 Salary Prediction Results:
 ------------------------
 Predicted Annual Salary: ${formatted_salary}
+Model Confidence: ${(confidence * 100).toFixed(2)}%
 
 Candidate Details:
 ----------------
@@ -839,15 +904,11 @@ Job Level: ${jobLevel}
 Industry: ${industry}
 Location: ${location}
 
-Salary Breakdown:
----------------
-Base Salary: $30,000
-Experience Factor: $${exp_factor.toLocaleString()}
-Education Factor: $${edu_factor.toLocaleString()}
-Job Level Factor: $${level_factor.toLocaleString()}
-Industry Factor: $${industry_factor.toLocaleString()}
-Location Factor: $${location_factor.toLocaleString()}
-Total: ${formatted_salary}
+Feature Importance:
+------------------
+${featureImportanceText}
+
+✨ Prediction powered by XGBoost ML model
       `;
 
       setMessages(prev => [...prev, {
@@ -1641,30 +1702,75 @@ Total: ${formatted_salary}
                       {message.type === 'ai' ? (
                         <div className="space-y-3 text-white">
                           {message.content.split('\n').map((line, lineIndex) => {
-                            // Check for section headers (lines ending with ':')
-                            if (line.endsWith(':')) {
-                              // Only add border for actual section headers, not for questions or regular text
-                              if (line.includes('Results:') || line.includes('Content:') || line.includes('Details:') || line.includes('Breakdown:')) {
+                            // Check for "Resume Improvement Analysis" header
+                            if (line.startsWith('Resume Improvement Analysis')) {
+                              return (
+                                <div key={lineIndex} className="font-bold text-xl text-blue-400 border-b-2 border-blue-400/50 pb-3 mb-4">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            
+                            // Check for "Suggestions:" label
+                            if (line.trim() === 'Suggestions:') {
+                              return (
+                                <div key={lineIndex} className="font-semibold text-base text-blue-300 mt-2 mb-1">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            
+                            // Check for "Example:" label
+                            if (line.trim() === 'Example:') {
+                              return (
+                                <div key={lineIndex} className="font-semibold text-base text-green-400 mt-3 mb-1">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            
+                            // Check for bullet points with • (from our Resume Improvement)
+                            if (line.startsWith('•')) {
+                              return (
+                                <div key={lineIndex} className="flex items-start space-x-2 ml-2 my-1">
+                                  <span className="text-blue-400 font-bold text-lg mt-0.5">•</span>
+                                  <span className="text-gray-100 leading-relaxed">{line.substring(1).trim()}</span>
+                                </div>
+                              );
+                            }
+                            
+                            // Check for section headers (lines ending with ':' but not Suggestions/Example)
+                            if (line.endsWith(':') && !line.trim().startsWith('Example') && !line.trim().startsWith('Suggestions')) {
+                              // Check if it's a major section header or skill area
+                              const trimmedLine = line.trim();
+                              const isSkillArea = !trimmedLine.includes('Results') && 
+                                                 !trimmedLine.includes('Content') && 
+                                                 !trimmedLine.includes('Details') && 
+                                                 !trimmedLine.includes('Breakdown');
+                              
+                              if (isSkillArea) {
+                                // Skill/Area headers (like "Node.js:", "Security:")
                                 return (
-                                  <div key={lineIndex} className="font-bold text-lg text-blue-400 border-b border-blue-400/30 pb-2">
+                                  <div key={lineIndex} className="font-bold text-lg text-blue-400 mt-4 mb-2 border-l-4 border-blue-400 pl-3">
                                     {line}
                                   </div>
                                 );
                               } else {
+                                // Regular section headers
                                 return (
-                                  <div key={lineIndex} className="font-bold text-lg text-blue-400">
+                                  <div key={lineIndex} className="font-bold text-lg text-blue-400 border-b border-blue-400/30 pb-2">
                                     {line}
                                   </div>
                                 );
                               }
                             }
                             
-                            // Check for bullet points
+                            // Check for bullet points with - (legacy format)
                             if (line.startsWith('-')) {
                               return (
-                                <div key={lineIndex} className="flex items-start space-x-2">
-                                  <span className="text-blue-400">•</span>
-                                  <span className="text-white">{line.substring(1)}</span>
+                                <div key={lineIndex} className="flex items-start space-x-2 ml-2 my-1">
+                                  <span className="text-blue-400 font-bold">•</span>
+                                  <span className="text-gray-100">{line.substring(1).trim()}</span>
                                 </div>
                               );
                             }
@@ -1673,7 +1779,7 @@ Total: ${formatted_salary}
                             if (line.match(/^\d+\./)) {
                               return (
                                 <div key={lineIndex} className="flex items-start space-x-2">
-                                  <span className="text-blue-400">{line.match(/^\d+\./)[0]}</span>
+                                  <span className="text-blue-400 font-semibold">{line.match(/^\d+\./)[0]}</span>
                                   <span className="text-white">{line.substring(line.indexOf('.') + 1)}</span>
                                 </div>
                               );
@@ -1688,8 +1794,20 @@ Total: ${formatted_salary}
                               );
                             }
                             
+                            // Example text (longer paragraphs after "Example:")
+                            const prevLine = message.content.split('\n')[lineIndex - 1];
+                            if (prevLine && prevLine.trim() === 'Example:' && line.trim() !== '') {
+                              return (
+                                <div key={lineIndex} className="text-gray-200 bg-green-900/20 p-3 rounded-md border-l-4 border-green-400 italic leading-relaxed">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            
                             // Regular text
-                            return <div key={lineIndex} className="text-white">{line}</div>;
+                            return line.trim() === '' ? 
+                              <div key={lineIndex} className="h-2"></div> : 
+                              <div key={lineIndex} className="text-white leading-relaxed">{line}</div>;
                           })}
                         </div>
                       ) : (

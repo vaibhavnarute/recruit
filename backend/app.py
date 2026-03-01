@@ -417,8 +417,53 @@ def analyze():
         )
         print(f"✅ Job saved with ID: {current_job_id}")
 
-        result = analyze_resumes(job_description, resumes, threshold)
-        return jsonify(result)
+        # Use LangGraph ResumeAnalysisAgent for each resume
+        try:
+            from langgraph_agents.resume_analysis_agent import ResumeAnalysisAgent
+        except Exception as e:
+            print(f"❌ Failed to import ResumeAnalysisAgent: {str(e)}")
+            return jsonify({"success": False, "error": "ResumeAnalysisAgent unavailable"}), 500
+
+        groq_key = os.getenv('GROQ_API_KEY')
+        if not groq_key:
+            return jsonify({"success": False, "error": "GROQ_API_KEY not configured"}), 500
+
+        agent = ResumeAnalysisAgent(groq_api_key=groq_key)
+
+        aggregated_results = []
+        for file in resumes:
+            try:
+                resume_text = extract_text_from_pdf(file)
+                emails, names = extract_entities(resume_text)
+                analysis = agent.analyze(resume_text=resume_text, job_description=job_description)
+                aggregated_results.append({
+                    "names": names or ["Unknown"],
+                    "emails": emails or [],
+                    "similarity": float(analysis.get("match_score", 0)),
+                    "matching_skills": analysis.get("matching_skills", []),
+                    "missing_skills": analysis.get("missing_skills", []),
+                    "strengths": analysis.get("strengths", []),
+                    "improvement_areas": analysis.get("areas_for_improvement", []),
+                    "text": resume_text
+                })
+            except Exception as rerr:
+                print(f"⚠️ Failed analyzing a resume: {str(rerr)}")
+                aggregated_results.append({
+                    "names": ["Unknown"],
+                    "emails": [],
+                    "similarity": 0,
+                    "matching_skills": [],
+                    "missing_skills": [],
+                    "strengths": [],
+                    "improvement_areas": [],
+                    "text": ""
+                })
+
+        return jsonify({
+            "success": True,
+            "results": aggregated_results,
+            "threshold": threshold
+        })
     except Exception as e:
         print(f"Error in /api/analyze: {str(e)}")
         import traceback
@@ -446,12 +491,9 @@ Selected Candidates:
 Generate a professional acceptance email that:
 1. Congratulates the candidates
 2. Mentions their strong qualifications
-3. Includes interview details:
-   - Interview Link: https://ac05-150-107-16-112.ngrok-free.app/room/swarup
-   - Interview Timing: [Please select a suitable time slot]
-4. Maintains a professional tone
-5. Is personalized but not overly specific
-6. IMPORTANT: Only include the interview link once in the message
+3. Maintains a professional tone
+4. Is personalized but not overly specific
+5. IMPORTANT: Only include the interview link once in the message
 
 Email:"""
         else:  # reject
@@ -469,7 +511,7 @@ Email:"""
 
         # Call Groq API directly
         response = groq_client.chat.completions.create(
-            model="gemma2-9b-it",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a professional HR assistant. Generate clear, concise, and professional emails. Make sure to include the interview link only once in the message."},
                 {"role": "user", "content": prompt}
@@ -793,26 +835,28 @@ def qa():
         if answer.lower().startswith('answer:'):
             answer = answer[7:].strip()
         
-        # Save Q&A session to MongoDB
+        # Save Q&A session to MongoDB (using MongoDBService to avoid missing symbols)
         try:
-            # Create or get session
+            from db.mongo_service import MongoDBService
+            metadata = result.get('metadata', {}) if isinstance(result, dict) else {}
+            # Create session if missing
             if not session_id:
-                session_id = create_qa_session(
-                    room_id="web_qa_" + str(uuid.uuid4())[:8],
-                    candidate_name="Web User",
-                    job_role="Resume Review"
+                # Use lightweight session seeded with placeholder resume/user references
+                created_id = MongoDBService.create_qa_session(resume_id="web_resume", user_email="web_user@local")
+                session_id = created_id or None
+                print(f"✅ Q&A session created: {session_id}")
+            # Append question entry if session exists
+            if session_id:
+                MongoDBService.add_qa_question(
+                    qa_id=session_id,
+                    question=question,
+                    answer=answer,
+                    question_type="resume_analysis",
+                    confidence=float(metadata.get('confidence', 0.0)) if metadata else 0.0,
+                    tokens_used=int(metadata.get('tokens_used', 0)) if metadata else 0,
+                    relevant_sections=metadata.get('relevant_sections', []) if metadata else []
                 )
-                print(f"✅ Created new Q&A session: {session_id}")
-            
-            # Add question and answer to session
-            add_qa_question(
-                session_id=session_id,
-                question=question,
-                answer=answer,
-                question_type="resume_analysis",
-                metadata=result.get('metadata', {})
-            )
-            print(f"✅ Q&A logged to MongoDB session: {session_id}")
+                print(f"✅ Q&A logged to MongoDB session: {session_id}")
         except Exception as e:
             print(f"⚠️ Failed to log Q&A to MongoDB: {str(e)}")
             session_id = None
@@ -828,6 +872,131 @@ def qa():
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/questions', methods=['POST'])
+def generate_questions():
+    """
+    Generate interview questions from an uploaded resume using the configured LLM.
+    Expects multipart/form-data with fields:
+      - resume: PDF file
+      - question_types: JSON array of types
+      - difficulty: string
+      - num_questions: integer
+    Returns JSON: { "questions": [ { question, type, difficulty } ] }
+    """
+    try:
+        import json
+        if not groq_client:
+            return jsonify({
+                'questions': [{
+                    'question': 'Question generator unavailable (LLM not configured).',
+                    'type': 'error',
+                    'difficulty': 'unknown'
+                }] 
+            })
+
+        file = request.files.get('resume')
+        question_types_raw = request.form.get('question_types', '[]')
+        difficulty = request.form.get('difficulty', 'medium')
+        num_questions = int(request.form.get('num_questions', '10'))
+
+        try:
+            types = json.loads(question_types_raw)
+            if not isinstance(types, list):
+                types = []
+        except Exception:
+            types = []
+
+        resume_text = extract_text_from_pdf(file) if file else ''
+
+        prompt = f"""
+        Based on this resume:
+        {resume_text}
+
+        Generate {num_questions} interview questions with these specifications:
+        - Types: {', '.join(types)}
+        - Difficulty: {difficulty}
+        - Questions should be specific to the candidate's experience and skills
+
+        Provide the questions in this exact JSON format:
+        {{
+            "questions": [
+                {{
+                    "question": "<question text>",
+                    "type": "<question type>",
+                    "difficulty": "<difficulty level>"
+                }}
+            ]
+        }}
+        Return ONLY JSON.
+        """
+
+        def _ask_llm(_prompt: str, _temperature: float = 0.9) -> str:
+            comp = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": "You must return ONLY valid JSON conforming to the provided schema. No prose."},
+                          {"role": "user", "content": _prompt}],
+                temperature=_temperature,
+                max_tokens=1024,
+            )
+            return comp.choices[0].message.content.strip()
+
+        # Attempt 1: creative generation (higher temperature)
+        response_text = _ask_llm(prompt, 0.9)
+
+        def _try_parse(text: str):
+            try:
+                parsed0 = json.loads(text)
+                if 'questions' in parsed0 and isinstance(parsed0['questions'], list):
+                    return parsed0
+            except Exception:
+                pass
+            s = text.find('{'); e = text.rfind('}')
+            if s != -1 and e != -1 and e > s:
+                try:
+                    parsed1 = json.loads(text[s:e+1])
+                    if 'questions' in parsed1 and isinstance(parsed1['questions'], list):
+                        return parsed1
+                except Exception:
+                    return None
+            return None
+
+        parsed = _try_parse(response_text)
+        if parsed:
+            return jsonify(parsed)
+
+        # Attempt 2: ask model to fix its own output deterministically
+        fix_prompt = f"""
+        Convert the following content into the EXACT JSON schema below. Do not include any prose.
+
+        SCHEMA:
+        {{
+          "questions": [
+            {{ "question": "<text>", "type": "<one of {', '.join(types) or ['general']}>", "difficulty": "{difficulty}" }}
+          ]
+        }}
+
+        Ensure there are exactly {num_questions} items in questions and valid JSON only.
+
+        CONTENT:
+        {response_text}
+        """
+        response_text2 = _ask_llm(fix_prompt, 0.0)
+        parsed2 = _try_parse(response_text2)
+        if parsed2:
+            return jsonify(parsed2)
+
+        # If still not valid, return an explicit error so frontend can notify the user
+        return jsonify({ 'error': 'Model returned non-JSON content after retries' }), 500
+    except Exception as e:
+        return jsonify({
+            'questions': [{
+                'question': f'Error: {str(e)}',
+                'type': 'error',
+                'difficulty': 'unknown'
+            }]
+        })
 
 
 @app.route('/api/predict-salary', methods=['POST'])
@@ -956,48 +1125,126 @@ def predict_job_possibility():
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
-
-@app.route('/interview/<roomid>')
-def interview_room(roomid):
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Video Interview</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://unpkg.com/@zegocloud/zego-uikit-prebuilt@1.0.0/zego-uikit-prebuilt.js"></script>
-        <style>
-            #root {
-                width: 100vw;
-                height: 100vh;
-            }
-            body {
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="root"></div>
-        <script>
-            const roomID = window.location.pathname.split('/').pop();
-            const zp = ZegoUIKitPrebuilt.create({
-                appID: 2128937685,
-                serverSecret: "cdbd6af0aaa52e5a222272f8553195c5",
-                roomID: roomID,
-                userID: 'user_' + Math.floor(Math.random() * 10000),
-                userName: 'User_' + Math.floor(Math.random() * 10000),
-                container: document.querySelector("#root"),
-                scenario: {
-                    mode: ZegoUIKitPrebuilt.OneONoneCall,
-                },
-            });
-        </script>
-    </body>
-    </html>
+#
+@app.route('/api/send-acceptance', methods=['POST'])
+def send_acceptance():
     """
+    Batch HR-driven selection:
+    - Takes HR id (from session or request)
+    - Accepts a list of candidates for acceptance
+    - For each candidate: generate/generate email, send it, store selection in DB linked to HR
+    - Logs ALL actions, always returns 200
+    """
+    import traceback
+    try:
+        # Simulate authentication (fetch from session/user, here simplify from request for demo)
+        data = request.get_json()
+        hr_id = data.get('hr_id')    # In production, get this from the session/user token!
+        hr_name = data.get('hr_name')
+        hr_email = data.get('hr_email')
+        candidates = data.get('candidates', [])  # List of dicts
+        job_description = data.get('job_description')
+        batch_id = data.get('batch_id')  # Optional
+        selection_method = data.get('selection_method', 'manual')
+        if not hr_id or not candidates or not job_description:
+            return jsonify({"success": False, "error": "Missing required fields (hr_id or candidates or job_description)"}), 200
+
+        # Prepare batch
+        results = []
+
+        for c in candidates:
+            try:
+                # Candidate fields expected: candidate_name, candidate_email, job_id, resume_id, match_score, ATS score, etc.
+                candidate_name = c.get('candidate_name')
+                candidate_email = c.get('candidate_email')
+                job_id = c.get('job_id')
+                resume_id = c.get('resume_id')
+                match_score = c.get('match_score')
+                matching_skills = c.get('matching_skills', [])
+                missing_skills = c.get('missing_skills', [])
+                strengths = c.get('strengths', [])
+                improvement_areas = c.get('improvement_areas', [])
+                ats_score = c.get('ats_score', match_score)
+
+                # Generate acceptance message using LLM
+                prompt = f"""Generate a professional acceptance email for the following candidate:\n\nJob Description: {job_description}\n\nSelected Candidate: {candidate_name} (Email: {candidate_email}, ATS Score: {ats_score:.2f}%)\n\nGenerate a professional acceptance email congratulating the candidate, highlighting their selection, and providing next steps for interview.\n\nEmail:"""
+                response = groq_client.chat.completions.create(
+                    model="gemma2-9b-it",
+                    messages=[
+                        {"role": "system", "content": "You are a professional HR assistant. Generate clear, concise, and professional emails."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                acceptance_email = response.choices[0].message.content.strip()
+
+                subject = f"Congratulations: Next Steps for {job_description[:40]}..."
+                send_success, send_msg = send_email(candidate_email, subject, acceptance_email)
+                email_status = "sent" if send_success else "failed"
+
+                # Insert into selected_candidates collection (with HR info!)
+                try:
+                    from db.mongo_service import MongoDBService
+                    selected_id = MongoDBService.add_selected_candidate(
+                        candidate_email=candidate_email,
+                        candidate_name=candidate_name,
+                        job_id=job_id,
+                        resume_id=resume_id,
+                        match_score=match_score,
+                        matching_skills=matching_skills,
+                        missing_skills=missing_skills,
+                        selected_by=hr_id,
+                        strengths=strengths,
+                        improvement_areas=improvement_areas,
+                        metadata={
+                            'hr_id': hr_id,
+                            'hr_email': hr_email,
+                            'hr_name': hr_name,
+                            'selection_method': selection_method,
+                            'batch_id': batch_id,
+                            'acceptance_email': acceptance_email,
+                            'acceptance_email_status': email_status
+                        }
+                    )
+                    log_msg = f"[ACCEPTANCE][SUCCESS] {candidate_name} ({candidate_email}) selected by HR {hr_name} ({hr_id}), email status: {email_status}"
+                except Exception as db_ex:
+                    selected_id = None
+                    log_msg = f"[ACCEPTANCE][DB_ERROR] {candidate_name} ({candidate_email}) HR {hr_id}: {db_ex}"
+                print(log_msg)
+                results.append({
+                    'candidate': candidate_name,
+                    'email': candidate_email,
+                    'selected_id': selected_id,
+                    'email_status': email_status,
+                    'send_msg': send_msg,
+                    'error': None if send_success else send_msg,
+                    'log': log_msg
+                })
+            except Exception as e:
+                error_info = f"[ACCEPTANCE][ERROR] {traceback.format_exc()}"
+                print(error_info)
+                results.append({
+                    'candidate': c.get('candidate_name', 'UNKNOWN'),
+                    'email': c.get('candidate_email'),
+                    'selected_id': None,
+                    'email_status': 'error',
+                    'send_msg': None,
+                    'error': str(e),
+                    'log': error_info
+                })
+                continue
+        any_errors = any(r['email_status'] != 'sent' for r in results)
+        status = False if any_errors else True
+        summary = "Some acceptance emails failed. Check logs and details." if any_errors else "All emails sent and selections logged."
+        return jsonify({
+            'success': status,
+            'summary': summary,
+            'results': results
+        }), 200
+    except Exception as e:
+        print(f"[ACCEPTANCE][FATAL_ERROR] {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

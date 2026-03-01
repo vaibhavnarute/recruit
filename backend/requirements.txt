@@ -20,3 +20,14 @@ pymongo
 motor
 bcrypt
 dnspython
+
+# Redis for Distributed Scaling
+redis[hiredis]>=5.0.0
+hiredis>=2.2.0
+
+# Security & JWT
+PyJWT>=2.8.0
+psutil>=5.9.0
+
+# Text-to-Speech (Deepgram Aura)
+deepgram-sdk>=3.0.0

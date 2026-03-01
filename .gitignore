@@ -24,3 +24,68 @@ dist-ssr
 *.sw?
 node_modules
 venv311/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+*.egg-info/
+build/
+
+# Environment variables — NEVER commit these (contain API keys, passwords)
+.env
+.env.local
+.env.*
+backend/.env
+
+# Embedded sub-repos (handle separately)
+talentstream-hr/
+
+# Test coverage reports
+coverage/
+*.cover
+*.coverage
+
+# MongoDB dumps
+*.bson
+
+# Sensitive JSON files only (NOT package.json, tsconfig.json etc.)
+backend/google_credentials.json
+backend/google_token.json
+backend/meet_bot_sessions/
+backend/meet_join_debug_*.png
+backend/meet_BEFORE_join_*.png
+backend/meet_AFTER_join_*.png
+backend/admit_diag_*.png
+backend/interview_run_*.log
+backend/uploads/
+
+# Miscellaneous
+bun.lockb
+
+# Sensitive files
+*.key
+*.pem
+*.crt
+*.pfx
+*.cert
+
+# Secrets and credentials
+secret_key.txt
+credentials.json
+*.token
+*.auth
+
+# API keys
+api_keys.json
+*.api_key
+
+# Logs containing sensitive data
+*.log
+*.debug.log
+
+# Cache and temporary files
+.cache/
+*.tmp
+*.bak

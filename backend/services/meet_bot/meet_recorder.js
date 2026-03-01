@@ -695,6 +695,87 @@ class MeetRecorder extends EventEmitter {
     }
 
     /**
+     * Play audio in Google Meet
+     * @param {string} audioBase64 - Base64 encoded audio data
+     * @param {string} format - Audio format (mp3, wav, webm)
+     * @returns {Promise<Object>} - Result with duration and status
+     */
+    async playAudio(audioBase64, format = 'mp3') {
+        Logger.info('Playing audio in meeting', { 
+            format, 
+            dataLength: audioBase64.length 
+        });
+        
+        try {
+            if (!this.page) {
+                throw new Error('Page not initialized');
+            }
+            
+            // Play audio in browser context
+            const result = await this.page.evaluate(async (base64Data, audioFormat) => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        // Convert base64 to blob
+                        const binaryString = atob(base64Data);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        // Create blob and object URL
+                        const mimeType = audioFormat === 'mp3' ? 'audio/mpeg' : 
+                                       audioFormat === 'wav' ? 'audio/wav' : 
+                                       'audio/webm';
+                        const blob = new Blob([bytes], { type: mimeType });
+                        const audioUrl = URL.createObjectURL(blob);
+                        
+                        // Create and play audio element
+                        const audio = new Audio(audioUrl);
+                        audio.volume = 1.0;
+                        
+                        // Track playback
+                        let playbackStartTime = Date.now();
+                        
+                        audio.onended = () => {
+                            const duration = (Date.now() - playbackStartTime) / 1000;
+                            URL.revokeObjectURL(audioUrl);
+                            resolve({
+                                success: true,
+                                duration,
+                                message: 'Audio played successfully'
+                            });
+                        };
+                        
+                        audio.onerror = (error) => {
+                            URL.revokeObjectURL(audioUrl);
+                            reject(new Error(`Audio playback error: ${error.message || 'Unknown error'}`));
+                        };
+                        
+                        // Start playback
+                        audio.play().catch(err => {
+                            URL.revokeObjectURL(audioUrl);
+                            reject(new Error(`Failed to play audio: ${err.message}`));
+                        });
+                        
+                    } catch (error) {
+                        reject(new Error(`Audio processing error: ${error.message}`));
+                    }
+                });
+            }, audioBase64, format);
+            
+            Logger.info('Audio playback completed', result);
+            
+            this.emit('audio:played', result);
+            
+            return result;
+            
+        } catch (error) {
+            Logger.error('Error playing audio', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
      * Leave Google Meet meeting
      */
     async leaveMeeting() {
