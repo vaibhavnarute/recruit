@@ -266,7 +266,7 @@ All database operations use the service layer in `backend/db/mongo_service.py`:
 1. Open MongoDB Compass
 2. Connect with:
    ```
-   mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin
+   mongo_url
    ```
 3. Navigate to `resumate` database
 4. Browse all 12 collections

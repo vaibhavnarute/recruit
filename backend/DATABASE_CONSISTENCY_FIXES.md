@@ -66,7 +66,7 @@ self.db = self.mongo_client[mongo_db_name]
 import threading
 
 # Configuration
-MONGO_URI = os.getenv('MONGODB_URI', 'mongodb+srv://vaibhavnarute:vaibhav123@cluster0.mongodb.net/ai_recruiter_db?retryWrites=true&w=majority')
+MONGO_URI = os.getenv('MONGODB_URI', 'mongo_url')
 
 # Later in code:
 db = client['ai_recruiter_db']
@@ -83,7 +83,7 @@ load_dotenv()
 # Configuration
 MONGO_URI = os.getenv('MONGODB_URI')
 if not MONGO_URI:
-    MONGO_URI = 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin'
+    MONGO_URI = 'mongo_url'
 
 # Later in code:
 mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')
@@ -119,7 +119,7 @@ db = client[mongo_db_name]
 ```python
 import os
 
-mongo_uri = os.getenv('MONGODB_URI', 'mongodb+srv://vaibhavnarute:vaibhav123@cluster0.mongodb.net/ai_recruiter_db?retryWrites=true&w=majority')
+mongo_uri = os.getenv('MONGODB_URI', 'mongo_url')
 client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
 db = client['ai_recruiter_db']
 ```
@@ -132,7 +132,7 @@ load_dotenv()
 
 mongo_uri = os.getenv('MONGODB_URI')
 if not mongo_uri:
-    mongo_uri = 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin'
+    mongo_uri = 'mongo_url'
 
 client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
 mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')
@@ -146,14 +146,14 @@ db = client[mongo_db_name]
 ### ✅ Correct `.env` Configuration
 ```bash
 # MongoDB Configuration
-MONGO_URI=mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin
+MONGO_URI=mongo_url
 MONGO_DB_NAME=resumate
 
 # MongoDB URI Alias (for compatibility)
-MONGODB_URI=mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin
+MONGODB_URI=mongo_url
 
 # MongoDB Atlas URI (for analytics/dashboard)
-MONGODB_ATLAS_URI=mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin
+MONGODB_ATLAS_URI=mongo_url
 ```
 
 ### Key Points:

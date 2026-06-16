@@ -99,7 +99,7 @@ npm run dev
 
 ### Step 5: Verify Database
 ```bash
-mongosh "mongodb+srv://resumate.xbvpnl1.mongodb.net" -u <user> -p <pass>
+mongosh "mongo_url" -u <user> -p <pass>
 use resumate
 db.interviews.find({}, {
   auto_start_bot: 1, 

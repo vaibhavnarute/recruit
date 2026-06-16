@@ -292,7 +292,7 @@ Overall: 5/5 tests passed (100.0%)
 ### **MongoDB Connection**
 Ensure `MONGODB_ATLAS_URI` is set in `.env`:
 ```bash
-MONGODB_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname
+MONGODB_ATLAS_URI=mongo_url
 ```
 
 ### **Redis Connection** (for distributed orchestration)

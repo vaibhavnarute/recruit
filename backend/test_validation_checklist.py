@@ -33,7 +33,7 @@ MONGO_URI = os.getenv('MONGODB_URI')
 if not MONGO_URI:
     print("⚠️  WARNING: MONGODB_URI not found in environment variables")
     print("   Loading from .env file or using default...")
-    MONGO_URI = 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin'
+    MONGO_URI = 'mongo_url'
 
 REDIS_HOST = 'redis-18720.c330.asia-south1-1.gce.redns.redis-cloud.com'
 REDIS_PORT = 18720

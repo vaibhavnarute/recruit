@@ -513,7 +513,7 @@ npm run dev
 # - Bot should be in meeting
 
 # 6. Verify in database
-mongosh "mongodb+srv://resumate.xbvpnl1.mongodb.net" -u <user> -p <pass>
+mongosh "mongo_url" -u <user> -p <pass>
 use resumate
 db.interviews.find().sort({_id:-1}).limit(1).pretty()
 ```

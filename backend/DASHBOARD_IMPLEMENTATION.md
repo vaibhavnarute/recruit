@@ -116,7 +116,7 @@ For each component (STT, LLM, TTS, Total):
 DASHBOARD_SECRET=ai-recruiter-dashboard-2025-secure-key
 
 # MongoDB connection (for metrics)
-MONGODB_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true&w=majority&authSource=admin
+MONGODB_ATLAS_URI=mongo_url
 ```
 
 ### **Security Best Practices**

@@ -362,7 +362,7 @@ def cleanup_old_test_sessions() -> int:
             # Get MongoDB connection from environment
             mongo_uri = os.getenv('MONGODB_URI')
             if not mongo_uri:
-                mongo_uri = 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin'
+                mongo_uri = 'mongo_url'
             
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
             mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')
@@ -405,7 +405,7 @@ def cleanup_old_test_sessions() -> int:
             
             mongo_uri = os.getenv('MONGODB_URI')
             if not mongo_uri:
-                mongo_uri = 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/?retryWrites=true&w=majority&authSource=admin'
+                mongo_uri = 'mongo_url'
                 
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
             mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')

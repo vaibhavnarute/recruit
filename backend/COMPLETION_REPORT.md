@@ -228,7 +228,7 @@ Create `.env` file in `backend/` directory:
 
 ```bash
 # MongoDB Atlas
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ai_recruiter_db
+MONGODB_URI=mongo_url
 
 # Redis Cloud
 REDIS_HOST=redis-18720.c330.asia-south1-1.gce.redns.redis-cloud.com

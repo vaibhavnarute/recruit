@@ -604,7 +604,7 @@ curl -X POST "http://localhost:8001/api/distributed/orchestration/start" \
 curl -X POST "http://localhost:8001/api/orchestration/end-session/test_manual_shutdown"
 
 # 4. Verify in database
-mongo "mongodb+srv://..." --eval 'db.conversation_transcripts.findOne({session_id:"test_manual_shutdown"})'
+mongo "mongo_url" --eval 'db.conversation_transcripts.findOne({session_id:"test_manual_shutdown"})'
 ```
 
 ---

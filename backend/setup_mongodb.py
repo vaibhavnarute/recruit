@@ -99,7 +99,7 @@ def check_env_file():
         if "MONGO_URI=mongodb" not in env_content or "your_" in env_content:
             logger.warning("\n⚠️  MONGO_URI not configured in .env file!")
             logger.info("\n📝 Please update .env with your MongoDB connection string:")
-            logger.info("   MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/")
+            logger.info("   MONGO_URI=mongo_url")
             logger.info("   MONGO_DB_NAME=resumate_db")
             logger.info("\n💡 Get your connection string from MongoDB Atlas or use local:")
             logger.info("   Local: MONGO_URI=mongodb://localhost:27017/")
