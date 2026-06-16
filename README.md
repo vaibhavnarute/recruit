@@ -1244,9 +1244,9 @@ API_KEY_IMPROVEMENT=gsk_...    # ResumeImprovementAgent
 API_KEY_IMPROVED_RESUME=gsk_...
 
 # ── MongoDB Atlas ────────────────────────────────────────────
-MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
-MONGODB_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGO_URI=mongo_url
+MONGODB_URI=mongo_url
+MONGODB_ATLAS_URI=mongo_url
 MONGO_DB_NAME=resumate
 
 # ── Google Meet Bot ──────────────────────────────────────────

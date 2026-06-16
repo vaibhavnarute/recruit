@@ -552,7 +552,7 @@ stats = token_optimizer.get_stats()
 GROQ_API_KEY=gsk_your_groq_api_key_here
 
 # MongoDB Configuration
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/resumate
+MONGODB_URI=mongo_url
 
 # WebSocket Bridge
 WEBSOCKET_HOST=0.0.0.0

@@ -445,7 +445,7 @@ Assert results
 from dotenv import load_dotenv
 load_dotenv()  # Load .env variables
 
-mongo_uri = os.getenv('MONGO_URI', 'mongodb+srv://...')
+mongo_uri = os.getenv('MONGO_URI', 'mongo_url')
 mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')
 
 self.mongo_client = MongoClient(

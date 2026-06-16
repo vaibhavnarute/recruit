@@ -144,7 +144,7 @@ class InterviewConductorAgent:
         )
         
         # MongoDB connection with proper timeout settings
-        mongo_uri = os.getenv('MONGO_URI', 'mongodb+srv://narutevaibhav95_db_user:9Y0gsqDxtHRoBH5w@resumate.xbvpnl1.mongodb.net/')
+        mongo_uri = os.getenv('MONGO_URI', 'mongo_url')
         mongo_db_name = os.getenv('MONGO_DB_NAME', 'resumate')
         
         # Configure MongoDB client with appropriate timeouts for Atlas

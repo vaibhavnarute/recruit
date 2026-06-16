@@ -142,7 +142,7 @@ fetch('http://localhost:8001/api/stt/transcript/session_123')
 ### **Required Environment Variables**
 ```bash
 GROQ_API_KEY=gsk_your_api_key_here
-MONGODB_URI=mongodb+srv://user:pass@cluster/resumate
+MONGODB_URI=mongo_url
 ```
 
 ### **Optional Environment Variables**
@@ -330,5 +330,5 @@ python test_stt_api.py
 python main.py 2>&1 | grep -E "🎤|✅|❌|🤖"
 
 # Monitor MongoDB
-mongo "mongodb+srv://..." --eval "db.meet_transcripts.find().count()"
+mongo "mongo_url" --eval "db.meet_transcripts.find().count()"
 ```

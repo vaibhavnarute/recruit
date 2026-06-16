@@ -96,7 +96,7 @@ SMTP_PASSWORD=your-app-password  # NOT your regular password!
 SENDER_EMAIL=your-email@gmail.com
 
 # MongoDB (should already be set)
-MONGO_URI=mongodb+srv://...
+MONGO_URI=mongo_url
 MONGO_DB_NAME=resumate
 ```
 
@@ -321,7 +321,7 @@ curl http://localhost:8001/api/interviews/status/{interview_id}
 **Solution:**
 ```bash
 # Check MongoDB connection in .env
-MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGO_URI=mongo_url
 MONGO_DB_NAME=resumate
 
 # Test connection:
