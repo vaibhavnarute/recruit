@@ -284,3 +284,20 @@ python test_complete_meet_interview.py
 ---
 
 If your friend follows this file in order, they should be able to run backend, frontend, and Meet bot locally.
+
+---
+
+## Copilot PR Validation Rhythm (Recommended)
+
+Use this sequence for code-change tasks:
+
+1. Make the first meaningful batch of code changes.
+2. Commit/push with `report_progress`.
+3. Run `parallel_validation` immediately (mid-way check).
+4. Fix valid findings.
+5. Complete remaining implementation.
+6. Commit/push again with `report_progress`.
+7. Run `parallel_validation` again as the final check.
+8. Finalize only when checks are clean or known issues are documented.
+
+When to treat it as mid-way: run the first `parallel_validation` when around 40–60% of functional changes are complete and the branch is in a runnable state.
